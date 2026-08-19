@@ -129,22 +129,24 @@ function spawnGreyBlock() {
 }
 
 // --- Audio System ---
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let audioCtx = null;
 let audioInitialized = false;
 
 function initAudio() {
     if (audioInitialized) return;
-    audioCtx.resume();
+    
+    // Create AudioContext only after user interaction to bypass browser policies
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     audioInitialized = true;
     
-    // Play a continuous soft background drone
+    // Play a continuous background drone
     const droneOsc = audioCtx.createOscillator();
     const droneGain = audioCtx.createGain();
     droneOsc.type = 'sine';
     droneOsc.frequency.setValueAtTime(55, audioCtx.currentTime); // Low A
     
     droneGain.gain.setValueAtTime(0, audioCtx.currentTime);
-    droneGain.gain.linearRampToValueAtTime(0.05, audioCtx.currentTime + 5); // Very quiet
+    droneGain.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 2); // Increased volume to 0.5
     
     droneOsc.connect(droneGain);
     droneGain.connect(audioCtx.destination);
@@ -158,17 +160,17 @@ function playSpawnSound(isCommunity) {
     const gain = audioCtx.createGain();
     
     if (isCommunity) {
-        // High pitched soft chime
+        // High pitched chime
         osc.type = 'sine';
         osc.frequency.setValueAtTime(440 + Math.random() * 440, audioCtx.currentTime);
-        gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.5);
+        gain.gain.setValueAtTime(0.4, audioCtx.currentTime); // Increased volume
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.5);
     } else {
-        // Lower pitched soft thud/drone for system block
+        // Lower pitched thud for system block
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(110 + Math.random() * 50, audioCtx.currentTime);
-        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1);
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime); // Lowered volume
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1);
     }
     
     osc.connect(gain);
@@ -181,7 +183,19 @@ function playSpawnSound(isCommunity) {
 const USER_SPAWN_COOLDOWN = 150; // ms limit
 
 window.addEventListener('pointerdown', (e) => {
-    initAudio();
+    // Hide intro overlay
+    const intro = document.getElementById('intro-overlay');
+    if (intro && intro.style.opacity !== '0') {
+        intro.style.opacity = '0';
+        setTimeout(() => { if (intro) intro.remove(); }, 1000);
+        
+        initAudio();
+        initSimulation(); // Start the art simulation now
+        return; // Do not spawn a block on the first click
+    }
+    
+    // Ensure audio is running
+    if (!audioInitialized) initAudio();
     
     const now = Date.now();
     if (now - lastUserSpawnTime < USER_SPAWN_COOLDOWN) return; // Enforce limit
@@ -356,4 +370,4 @@ window.addEventListener('resize', () => {
 });
 
 // Start
-initSimulation();
+// initSimulation(); // This is now called on the first user click
