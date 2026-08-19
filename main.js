@@ -165,16 +165,16 @@ function playAmbientNote() {
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     
-    // Random note from scale, shifted up slightly so mobile speakers can reproduce it
+    // Random note from scale, shifted up into the mid-range (C5/C4) so mobile speakers can easily reproduce it
     const randomNote = pentatonicScale[Math.floor(Math.random() * pentatonicScale.length)];
-    const octaveMultiplier = Math.random() > 0.5 ? 1 : 0.5; // Play in C4 or C3 range (audible on phones)
+    const octaveMultiplier = Math.random() > 0.5 ? 2 : 1; 
     
     osc.type = 'triangle'; // Triangle waves have more harmonics, making them audible on small speakers
     osc.frequency.setValueAtTime(randomNote * octaveMultiplier, audioCtx.currentTime);
     
     // Slow attack, long release (Ambient pad feel)
     gain.gain.setValueAtTime(0, audioCtx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 3); // Attack phase
+    gain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 3); // Slightly louder attack phase
     gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 12); // Long tail decay
     
     osc.connect(gain);
@@ -205,7 +205,7 @@ function playSpawnSound(isCommunity) {
         // Lower pitched thud for system block (harmonically locked)
         osc.type = 'triangle';
         const randomNote = pentatonicScale[Math.floor(Math.random() * pentatonicScale.length)];
-        osc.frequency.setValueAtTime(randomNote * 0.25, audioCtx.currentTime); // 2 octaves down
+        osc.frequency.setValueAtTime(randomNote * 0.5, audioCtx.currentTime); // 1 octave down (C3 range)
         gain.gain.setValueAtTime(0.4, audioCtx.currentTime); 
         gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.5);
     }
