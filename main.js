@@ -139,18 +139,39 @@ function initAudio() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     audioInitialized = true;
     
-    // Play a continuous background drone
-    const droneOsc = audioCtx.createOscillator();
-    const droneGain = audioCtx.createGain();
-    droneOsc.type = 'sine';
-    droneOsc.frequency.setValueAtTime(55, audioCtx.currentTime); // Low A
+    // Start generative background music
+    playAmbientNote();
+}
+
+const pentatonicScale = [261.63, 293.66, 329.63, 392.00, 440.00]; // C4, D4, E4, G4, A4
+
+function playAmbientNote() {
+    if (!audioCtx || audioCtx.state !== 'running') return;
     
-    droneGain.gain.setValueAtTime(0, audioCtx.currentTime);
-    droneGain.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 2); // Increased volume to 0.5
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
     
-    droneOsc.connect(droneGain);
-    droneGain.connect(audioCtx.destination);
-    droneOsc.start();
+    // Random note from scale, shifted down for an ambient, moody feel
+    const randomNote = pentatonicScale[Math.floor(Math.random() * pentatonicScale.length)];
+    const octaveMultiplier = Math.random() > 0.5 ? 0.5 : 0.25; // Play 1 or 2 octaves down
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(randomNote * octaveMultiplier, audioCtx.currentTime);
+    
+    // Slow attack, long release (Ambient pad feel)
+    gain.gain.setValueAtTime(0, audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 3); // Attack phase
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 12); // Long tail decay
+    
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    osc.start();
+    osc.stop(audioCtx.currentTime + 13);
+    
+    // Schedule next note randomly between 2 and 5 seconds to create overlapping harmonies
+    const nextTime = (Math.random() * 3 + 2) * 1000;
+    setTimeout(playAmbientNote, nextTime);
 }
 
 function playSpawnSound(isCommunity) {
@@ -160,17 +181,19 @@ function playSpawnSound(isCommunity) {
     const gain = audioCtx.createGain();
     
     if (isCommunity) {
-        // High pitched chime
+        // High pitched chime (harmonically locked to the background music)
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(440 + Math.random() * 440, audioCtx.currentTime);
-        gain.gain.setValueAtTime(0.4, audioCtx.currentTime); // Increased volume
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.5);
+        const randomNote = pentatonicScale[Math.floor(Math.random() * pentatonicScale.length)];
+        osc.frequency.setValueAtTime(randomNote * 2, audioCtx.currentTime); // 1 octave up
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime); 
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 2);
     } else {
-        // Lower pitched thud for system block
+        // Lower pitched thud for system block (harmonically locked)
         osc.type = 'triangle';
-        osc.frequency.setValueAtTime(110 + Math.random() * 50, audioCtx.currentTime);
-        gain.gain.setValueAtTime(0.15, audioCtx.currentTime); // Lowered volume
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1);
+        const randomNote = pentatonicScale[Math.floor(Math.random() * pentatonicScale.length)];
+        osc.frequency.setValueAtTime(randomNote * 0.25, audioCtx.currentTime); // 2 octaves down
+        gain.gain.setValueAtTime(0.4, audioCtx.currentTime); 
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.5);
     }
     
     osc.connect(gain);

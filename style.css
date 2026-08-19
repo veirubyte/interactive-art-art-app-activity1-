@@ -64,7 +64,7 @@ canvas {
     justify-content: center;
     align-items: center;
     z-index: 1000;
-    background: radial-gradient(circle at center, #f5f5f5 0%, #e0e0e0 50%, #c8c8c8 100%);
+    background-color: #f5f5f5; /* Solid background so art is hidden */
     pointer-events: auto;
     transition: opacity 1s ease-out;
 }
@@ -81,7 +81,7 @@ canvas {
 }
 
 #intro-overlay .colorful {
-    background: linear-gradient(to right, #ff477e, #f9dc5c, #00d2ff, #ff7b54);
+    background: linear-gradient(to right, #ff8ca1, #ffd1b3, #93d2c6, #5eb3c7);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
