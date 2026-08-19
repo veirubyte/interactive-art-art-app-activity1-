@@ -3,10 +3,7 @@ const Engine = Matter.Engine,
       Runner = Matter.Runner,
       Bodies = Matter.Bodies,
       Composite = Matter.Composite,
-      Events = Matter.Events,
-      Mouse = Matter.Mouse,
-      MouseConstraint = Matter.MouseConstraint,
-      Query = Matter.Query;
+      Events = Matter.Events;
 
 const engine = Engine.create(); // Removed locking mechanism (enableSleeping)
 // Maximized solver iterations for mathematical stability of tall stacks
@@ -27,23 +24,9 @@ const render = Render.create({
     }
 });
 
-// Add runner with isFixed to prevent 'turbo' physics if the browser lags or the tab is switched
-const runner = Runner.create({ isFixed: true });
-Runner.run(runner, engine);
-
-// Add mouse control globally so users can actually touch and drag blocks
-const mouse = Mouse.create(render.canvas);
-const mouseConstraint = MouseConstraint.create(engine, {
-    mouse: mouse,
-    constraint: {
-        stiffness: 0.2,
-        render: {
-            visible: false
-        }
-    }
-});
-render.mouse = mouse;
 Render.run(render);
+const runner = Runner.create();
+Runner.run(runner, engine);
 
 let totalGreyBlocks = 0;
 let fallenGreyBlocks = 0;
@@ -63,12 +46,6 @@ function initSimulation() {
     Composite.clear(engine.world);
     Engine.clear(engine);
     
-    // Explicitly restore physics settings in case Engine.clear wiped them
-    engine.positionIterations = 128;
-    engine.velocityIterations = 128;
-    engine.world.gravity.y = 0.4;
-    engine.timing.timeScale = 1;
-    
     totalGreyBlocks = 0;
     fallenGreyBlocks = 0;
     spawnRight = true;
@@ -86,8 +63,7 @@ function initSimulation() {
             visible: true
         }
     });
-    // Add the floor AND restore the global mouse constraint back to the cleared world
-    Composite.add(engine.world, [floor, mouseConstraint]);
+    Composite.add(engine.world, floor);
 
     // Start auto dropping at a slower pace
     if (dropInterval) clearInterval(dropInterval);
@@ -161,16 +137,6 @@ function initAudio() {
     
     // Create AudioContext only after user interaction to bypass browser policies
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    
-    // iOS Safari requires a sound to be played IMMEDIATELY in the interaction call stack to unlock it
-    const unlockOsc = audioCtx.createOscillator();
-    const unlockGain = audioCtx.createGain();
-    unlockGain.gain.value = 0; // Silent
-    unlockOsc.connect(unlockGain);
-    unlockGain.connect(audioCtx.destination);
-    unlockOsc.start();
-    unlockOsc.stop(audioCtx.currentTime + 0.1);
-    
     audioInitialized = true;
     
     // Start generative background music
@@ -194,7 +160,7 @@ function playAmbientNote() {
     
     // Slow attack, long release (Ambient pad feel)
     gain.gain.setValueAtTime(0, audioCtx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 3); // Attack phase (lowered by ~50%)
+    gain.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 3); // Attack phase
     gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 12); // Long tail decay
     
     osc.connect(gain);
@@ -239,54 +205,24 @@ function playSpawnSound(isCommunity) {
 // User Spawning limits
 const USER_SPAWN_COOLDOWN = 150; // ms limit
 
-function handleUserInteraction(e) {
-    // Hide intro overlay safely
+window.addEventListener('pointerdown', (e) => {
+    // Hide intro overlay
     const intro = document.getElementById('intro-overlay');
-    if (intro && intro.parentNode) {
+    if (intro && intro.style.opacity !== '0') {
         intro.style.opacity = '0';
-        intro.style.pointerEvents = 'none'; // instantly disable clicks on it
-        setTimeout(() => { if (intro && intro.parentNode) intro.remove(); }, 1000);
+        setTimeout(() => { if (intro) intro.remove(); }, 1000);
         
         initAudio();
         initSimulation(); // Start the art simulation now
         return; // Do not spawn a block on the first click
     }
     
-    // Ensure audio is running (iOS sometimes suspends it randomly)
-    if (!audioInitialized) {
-        initAudio();
-    } else if (audioCtx && audioCtx.state === 'suspended') {
-        audioCtx.resume();
-    }
+    // Ensure audio is running
+    if (!audioInitialized) initAudio();
     
     const now = Date.now();
     if (now - lastUserSpawnTime < USER_SPAWN_COOLDOWN) return; // Enforce limit
     lastUserSpawnTime = now;
-    
-    // Get correct coordinates depending on touch or mouse event
-    let clientX = e.clientX;
-    let clientY = e.clientY;
-    if (e.touches && e.touches.length > 0) {
-        clientX = e.touches[0].clientX;
-        clientY = e.touches[0].clientY;
-    } else if (e.changedTouches && e.changedTouches.length > 0) {
-        clientX = e.changedTouches[0].clientX;
-        clientY = e.changedTouches[0].clientY;
-    }
-    
-    if (typeof clientX !== 'number' || typeof clientY !== 'number') return;
-    
-    // BUG FIX: Prevent explosive overlapping
-    // If the user taps exactly on an existing block, spawning a new block inside it
-    // causes Matter.js to apply massive repulsive force, shooting the block off-screen instantly (vanishing).
-    const bodies = Composite.allBodies(engine.world);
-    const clickedBodies = Query.point(bodies, { x: clientX, y: clientY });
-    
-    if (clickedBodies.length > 0) {
-        // User is touching an existing block. We let the MouseConstraint handle the dragging
-        // and we abort spawning a new block inside of it.
-        return;
-    }
     
     // Varied rectangles for community blocks (smaller)
     const width = 15 + Math.random() * 20;
@@ -317,11 +253,7 @@ function handleUserInteraction(e) {
     
     Composite.add(engine.world, block);
     playSpawnSound(true);
-}
-
-// Bind using capture phase so Matter.js Mouse doesn't swallow the event via stopPropagation
-window.addEventListener('mousedown', handleUserInteraction, { capture: true });
-window.addEventListener('touchstart', handleUserInteraction, { passive: false, capture: true });
+});
 
 // Draw soft glows around community blocks
 Events.on(render, 'afterRender', function() {
