@@ -160,7 +160,7 @@ function playAmbientNote() {
     
     // Slow attack, long release (Ambient pad feel)
     gain.gain.setValueAtTime(0, audioCtx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 3); // Attack phase
+    gain.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 3); // Attack phase (lowered by ~50%)
     gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 12); // Long tail decay
     
     osc.connect(gain);
