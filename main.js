@@ -135,9 +135,23 @@ let audioInitialized = false;
 function initAudio() {
     if (audioInitialized) return;
     
-    // Create AudioContext only after user interaction to bypass browser policies
+    // Create AudioContext only after user interaction
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     audioInitialized = true;
+    
+    // Explicitly resume for iOS Safari
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+    
+    // Play a silent oscillator for 1ms to forcibly unlock the audio engine on strict mobile browsers
+    const unlockOsc = audioCtx.createOscillator();
+    const unlockGain = audioCtx.createGain();
+    unlockGain.gain.value = 0;
+    unlockOsc.connect(unlockGain);
+    unlockGain.connect(audioCtx.destination);
+    unlockOsc.start(0);
+    unlockOsc.stop(0.1);
     
     // Start generative background music
     playAmbientNote();
@@ -213,12 +227,18 @@ window.addEventListener('pointerdown', (e) => {
         setTimeout(() => { if (intro) intro.remove(); }, 1000);
         
         initAudio();
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+        
         initSimulation(); // Start the art simulation now
         return; // Do not spawn a block on the first click
     }
     
     // Ensure audio is running
-    if (!audioInitialized) initAudio();
+    if (!audioInitialized) {
+        initAudio();
+    } else if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
     
     const now = Date.now();
     if (now - lastUserSpawnTime < USER_SPAWN_COOLDOWN) return; // Enforce limit
