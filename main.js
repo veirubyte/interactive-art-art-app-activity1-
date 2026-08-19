@@ -3,7 +3,10 @@ const Engine = Matter.Engine,
       Runner = Matter.Runner,
       Bodies = Matter.Bodies,
       Composite = Matter.Composite,
-      Events = Matter.Events;
+      Events = Matter.Events,
+      Mouse = Matter.Mouse,
+      MouseConstraint = Matter.MouseConstraint,
+      Query = Matter.Query;
 
 const engine = Engine.create(); // Removed locking mechanism (enableSleeping)
 // Maximized solver iterations for mathematical stability of tall stacks
@@ -23,6 +26,20 @@ const render = Render.create({
         background: 'transparent' // Make matter.js canvas transparent to show our bg
     }
 });
+
+// Add mouse control so users can actually touch and drag blocks instead of making them explode
+const mouse = Mouse.create(render.canvas);
+const mouseConstraint = MouseConstraint.create(engine, {
+    mouse: mouse,
+    constraint: {
+        stiffness: 0.2,
+        render: {
+            visible: false
+        }
+    }
+});
+Composite.add(engine.world, mouseConstraint);
+render.mouse = mouse;
 
 Render.run(render);
 const runner = Runner.create();
@@ -244,6 +261,18 @@ function handleUserInteraction(e) {
     if (e.touches && e.touches.length > 0) {
         clientX = e.touches[0].clientX;
         clientY = e.touches[0].clientY;
+    }
+    
+    // BUG FIX: Prevent explosive overlapping
+    // If the user taps exactly on an existing block, spawning a new block inside it
+    // causes Matter.js to apply massive repulsive force, shooting the block off-screen instantly (vanishing).
+    const bodies = Composite.allBodies(engine.world);
+    const clickedBodies = Query.point(bodies, { x: clientX, y: clientY });
+    
+    if (clickedBodies.length > 0) {
+        // User is touching an existing block. We let the MouseConstraint handle the dragging
+        // and we abort spawning a new block inside of it.
+        return;
     }
     
     // Varied rectangles for community blocks (smaller)
