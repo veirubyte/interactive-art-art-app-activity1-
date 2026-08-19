@@ -27,7 +27,11 @@ const render = Render.create({
     }
 });
 
-// Add mouse control so users can actually touch and drag blocks instead of making them explode
+// Add runner with isFixed to prevent 'turbo' physics if the browser lags or the tab is switched
+const runner = Runner.create({ isFixed: true });
+Runner.run(runner, engine);
+
+// Add mouse control globally so users can actually touch and drag blocks
 const mouse = Mouse.create(render.canvas);
 const mouseConstraint = MouseConstraint.create(engine, {
     mouse: mouse,
@@ -38,12 +42,8 @@ const mouseConstraint = MouseConstraint.create(engine, {
         }
     }
 });
-Composite.add(engine.world, mouseConstraint);
 render.mouse = mouse;
-
 Render.run(render);
-const runner = Runner.create();
-Runner.run(runner, engine);
 
 let totalGreyBlocks = 0;
 let fallenGreyBlocks = 0;
@@ -63,6 +63,12 @@ function initSimulation() {
     Composite.clear(engine.world);
     Engine.clear(engine);
     
+    // Explicitly restore physics settings in case Engine.clear wiped them
+    engine.positionIterations = 128;
+    engine.velocityIterations = 128;
+    engine.world.gravity.y = 0.4;
+    engine.timing.timeScale = 1;
+    
     totalGreyBlocks = 0;
     fallenGreyBlocks = 0;
     spawnRight = true;
@@ -80,7 +86,8 @@ function initSimulation() {
             visible: true
         }
     });
-    Composite.add(engine.world, floor);
+    // Add the floor AND restore the global mouse constraint back to the cleared world
+    Composite.add(engine.world, [floor, mouseConstraint]);
 
     // Start auto dropping at a slower pace
     if (dropInterval) clearInterval(dropInterval);
@@ -233,11 +240,12 @@ function playSpawnSound(isCommunity) {
 const USER_SPAWN_COOLDOWN = 150; // ms limit
 
 function handleUserInteraction(e) {
-    // Hide intro overlay
+    // Hide intro overlay safely
     const intro = document.getElementById('intro-overlay');
-    if (intro && intro.style.opacity !== '0') {
+    if (intro && intro.parentNode) {
         intro.style.opacity = '0';
-        setTimeout(() => { if (intro) intro.remove(); }, 1000);
+        intro.style.pointerEvents = 'none'; // instantly disable clicks on it
+        setTimeout(() => { if (intro && intro.parentNode) intro.remove(); }, 1000);
         
         initAudio();
         initSimulation(); // Start the art simulation now
@@ -261,7 +269,12 @@ function handleUserInteraction(e) {
     if (e.touches && e.touches.length > 0) {
         clientX = e.touches[0].clientX;
         clientY = e.touches[0].clientY;
+    } else if (e.changedTouches && e.changedTouches.length > 0) {
+        clientX = e.changedTouches[0].clientX;
+        clientY = e.changedTouches[0].clientY;
     }
+    
+    if (typeof clientX !== 'number' || typeof clientY !== 'number') return;
     
     // BUG FIX: Prevent explosive overlapping
     // If the user taps exactly on an existing block, spawning a new block inside it
@@ -306,9 +319,9 @@ function handleUserInteraction(e) {
     playSpawnSound(true);
 }
 
-// Bind to multiple event types for maximum mobile compatibility
-window.addEventListener('mousedown', handleUserInteraction);
-window.addEventListener('touchstart', handleUserInteraction, { passive: false });
+// Bind using capture phase so Matter.js Mouse doesn't swallow the event via stopPropagation
+window.addEventListener('mousedown', handleUserInteraction, { capture: true });
+window.addEventListener('touchstart', handleUserInteraction, { passive: false, capture: true });
 
 // Draw soft glows around community blocks
 Events.on(render, 'afterRender', function() {

@@ -4,11 +4,13 @@
     box-sizing: border-box;
 }
 
-body {
+body, html {
     background: radial-gradient(circle at center, #f5f5f5 0%, #e0e0e0 50%, #c8c8c8 100%);
     overflow: hidden; /* Prevent scrolling when blocks fall out of bounds */
     width: 100vw;
     height: 100vh;
+    touch-action: none;
+    overscroll-behavior: none;
 }
 
 #bg-canvas {
