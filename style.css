@@ -88,6 +88,14 @@ canvas {
     color: transparent;
 }
 
+#intro-overlay .author {
+    font-family: 'Arial', sans-serif;
+    font-size: 1.2rem;
+    color: #888;
+    letter-spacing: 2px;
+    margin-bottom: 3rem;
+}
+
 #intro-overlay .prompt {
     font-family: 'Arial', sans-serif;
     font-size: 1.2rem;

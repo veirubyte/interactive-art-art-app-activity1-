@@ -151,11 +151,11 @@ function playAmbientNote() {
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     
-    // Random note from scale, shifted down for an ambient, moody feel
+    // Random note from scale, shifted up slightly so mobile speakers can reproduce it
     const randomNote = pentatonicScale[Math.floor(Math.random() * pentatonicScale.length)];
-    const octaveMultiplier = Math.random() > 0.5 ? 0.5 : 0.25; // Play 1 or 2 octaves down
+    const octaveMultiplier = Math.random() > 0.5 ? 1 : 0.5; // Play in C4 or C3 range (audible on phones)
     
-    osc.type = 'sine';
+    osc.type = 'triangle'; // Triangle waves have more harmonics, making them audible on small speakers
     osc.frequency.setValueAtTime(randomNote * octaveMultiplier, audioCtx.currentTime);
     
     // Slow attack, long release (Ambient pad feel)
