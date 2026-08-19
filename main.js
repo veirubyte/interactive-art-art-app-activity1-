@@ -137,6 +137,16 @@ function initAudio() {
     
     // Create AudioContext only after user interaction to bypass browser policies
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // iOS Safari requires a sound to be played IMMEDIATELY in the interaction call stack to unlock it
+    const unlockOsc = audioCtx.createOscillator();
+    const unlockGain = audioCtx.createGain();
+    unlockGain.gain.value = 0; // Silent
+    unlockOsc.connect(unlockGain);
+    unlockGain.connect(audioCtx.destination);
+    unlockOsc.start();
+    unlockOsc.stop(audioCtx.currentTime + 0.1);
+    
     audioInitialized = true;
     
     // Start generative background music
@@ -205,7 +215,7 @@ function playSpawnSound(isCommunity) {
 // User Spawning limits
 const USER_SPAWN_COOLDOWN = 150; // ms limit
 
-window.addEventListener('pointerdown', (e) => {
+function handleUserInteraction(e) {
     // Hide intro overlay
     const intro = document.getElementById('intro-overlay');
     if (intro && intro.style.opacity !== '0') {
@@ -217,12 +227,24 @@ window.addEventListener('pointerdown', (e) => {
         return; // Do not spawn a block on the first click
     }
     
-    // Ensure audio is running
-    if (!audioInitialized) initAudio();
+    // Ensure audio is running (iOS sometimes suspends it randomly)
+    if (!audioInitialized) {
+        initAudio();
+    } else if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
     
     const now = Date.now();
     if (now - lastUserSpawnTime < USER_SPAWN_COOLDOWN) return; // Enforce limit
     lastUserSpawnTime = now;
+    
+    // Get correct coordinates depending on touch or mouse event
+    let clientX = e.clientX;
+    let clientY = e.clientY;
+    if (e.touches && e.touches.length > 0) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+    }
     
     // Varied rectangles for community blocks (smaller)
     const width = 15 + Math.random() * 20;
@@ -253,7 +275,11 @@ window.addEventListener('pointerdown', (e) => {
     
     Composite.add(engine.world, block);
     playSpawnSound(true);
-});
+}
+
+// Bind to multiple event types for maximum mobile compatibility
+window.addEventListener('mousedown', handleUserInteraction);
+window.addEventListener('touchstart', handleUserInteraction, { passive: false });
 
 // Draw soft glows around community blocks
 Events.on(render, 'afterRender', function() {
