@@ -20,7 +20,7 @@ const render = Render.create({
         width: window.innerWidth,
         height: window.innerHeight,
         wireframes: false,
-        background: '#FFFFFF'
+        background: 'transparent' // Make matter.js canvas transparent to show our bg
     }
 });
 
@@ -53,11 +53,11 @@ function initSimulation() {
     lastDropOffset = 0; // Floor offset
     
     // Create static floor lowered more (80% down) and shortened (200px width ~ 2 inches)
-    // Made it a thin line (5px height for physics stability)
+    // Reverted to thin line (5px), kept darker grey color
     floor = Bodies.rectangle(window.innerWidth / 2, window.innerHeight * 0.8, 200, 5, {
         isStatic: true,
         render: { 
-            fillStyle: '#DDDDDD', // subtle visible line
+            fillStyle: '#555555', // noticeably darker grey
             strokeStyle: 'transparent',
             lineWidth: 0,
             visible: true
@@ -67,7 +67,7 @@ function initSimulation() {
 
     // Start auto dropping at a slower pace
     if (dropInterval) clearInterval(dropInterval);
-    dropInterval = setInterval(spawnGreyBlock, 3000);
+    dropInterval = setInterval(spawnGreyBlock, 8000);
 }
 
 // We will use 3 distinct columns to spread out the placement and avoid sticking in the middle.
@@ -125,12 +125,64 @@ function spawnGreyBlock() {
     
     Composite.add(engine.world, block);
     totalGreyBlocks++;
+    playSpawnSound(false);
+}
+
+// --- Audio System ---
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let audioInitialized = false;
+
+function initAudio() {
+    if (audioInitialized) return;
+    audioCtx.resume();
+    audioInitialized = true;
+    
+    // Play a continuous soft background drone
+    const droneOsc = audioCtx.createOscillator();
+    const droneGain = audioCtx.createGain();
+    droneOsc.type = 'sine';
+    droneOsc.frequency.setValueAtTime(55, audioCtx.currentTime); // Low A
+    
+    droneGain.gain.setValueAtTime(0, audioCtx.currentTime);
+    droneGain.gain.linearRampToValueAtTime(0.05, audioCtx.currentTime + 5); // Very quiet
+    
+    droneOsc.connect(droneGain);
+    droneGain.connect(audioCtx.destination);
+    droneOsc.start();
+}
+
+function playSpawnSound(isCommunity) {
+    if (!audioCtx || audioCtx.state !== 'running') return;
+    
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    
+    if (isCommunity) {
+        // High pitched soft chime
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440 + Math.random() * 440, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.5);
+    } else {
+        // Lower pitched soft thud/drone for system block
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(110 + Math.random() * 50, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1);
+    }
+    
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 2);
 }
 
 // User Spawning limits
 const USER_SPAWN_COOLDOWN = 150; // ms limit
 
 window.addEventListener('pointerdown', (e) => {
+    initAudio();
+    
     const now = Date.now();
     if (now - lastUserSpawnTime < USER_SPAWN_COOLDOWN) return; // Enforce limit
     lastUserSpawnTime = now;
@@ -139,9 +191,16 @@ window.addEventListener('pointerdown', (e) => {
     const width = 15 + Math.random() * 20;
     const height = 15 + Math.random() * 20;
     
-    // Random neon/pastel color
-    const hue = Math.floor(Math.random() * 360);
-    const color = `hsl(${hue}, 100%, 60%)`;
+    // Curated vivid palette for a nostalgic childhood memory feel
+    const vividColors = [
+        '#ff477e', // vibrant pink
+        '#ff99c3', // soft pink
+        '#f9dc5c', // sun yellow
+        '#3185fc', // vivid blue
+        '#00d2ff', // bright cyan
+        '#ff7b54'  // sunset orange
+    ];
+    const color = vividColors[Math.floor(Math.random() * vividColors.length)];
     
     const block = Bodies.rectangle(e.clientX, e.clientY, width, height, {
         label: 'community',
@@ -156,9 +215,80 @@ window.addEventListener('pointerdown', (e) => {
     });
     
     Composite.add(engine.world, block);
+    playSpawnSound(true);
 });
 
+// Draw soft glows around community blocks
+Events.on(render, 'afterRender', function() {
+    const context = render.context;
+    const bodies = Composite.allBodies(engine.world);
 
+    for (let i = 0; i < bodies.length; i++) {
+        const body = bodies[i];
+        if (body.label === 'community') {
+            context.beginPath();
+            const vertices = body.vertices;
+            context.moveTo(vertices[0].x, vertices[0].y);
+            for (let j = 1; j < vertices.length; j++) {
+                context.lineTo(vertices[j].x, vertices[j].y);
+            }
+            context.lineTo(vertices[0].x, vertices[0].y);
+            
+            context.lineWidth = 3;
+            context.strokeStyle = body.render.strokeStyle;
+            context.shadowBlur = 15;
+            context.shadowColor = body.render.strokeStyle;
+            context.stroke();
+            
+            // Reset shadow so it doesn't affect other rendering
+            context.shadowBlur = 0;
+        }
+    }
+});
+
+// Dust motes background animation
+const bgCanvas = document.getElementById('bg-canvas');
+const bgCtx = bgCanvas.getContext('2d');
+let motes = [];
+
+function initMotes() {
+    bgCanvas.width = window.innerWidth;
+    bgCanvas.height = window.innerHeight;
+    motes = [];
+    for (let i = 0; i < 70; i++) {
+        motes.push({
+            x: Math.random() * bgCanvas.width,
+            y: Math.random() * bgCanvas.height,
+            size: Math.random() * 2 + 1,
+            speedY: Math.random() * 0.3 + 0.1,
+            speedX: (Math.random() - 0.5) * 0.2,
+            opacity: Math.random() * 0.4 + 0.1
+        });
+    }
+}
+
+function drawMotes() {
+    bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+    motes.forEach(mote => {
+        bgCtx.beginPath();
+        bgCtx.arc(mote.x, mote.y, mote.size, 0, Math.PI * 2);
+        bgCtx.fillStyle = `rgba(220, 220, 220, ${mote.opacity})`;
+        bgCtx.fill();
+        
+        mote.y -= mote.speedY;
+        mote.x += mote.speedX;
+        
+        if (mote.y < -10) {
+            mote.y = bgCanvas.height + 10;
+            mote.x = Math.random() * bgCanvas.width;
+        }
+        if (mote.x < -10) mote.x = bgCanvas.width + 10;
+        if (mote.x > bgCanvas.width + 10) mote.x = -10;
+    });
+    requestAnimationFrame(drawMotes);
+}
+initMotes();
+drawMotes();
 
 // Rebirth Logic
 Events.on(engine, 'afterUpdate', function() {
@@ -213,6 +343,9 @@ window.addEventListener('resize', () => {
     render.canvas.height = window.innerHeight;
     render.options.width = window.innerWidth;
     render.options.height = window.innerHeight;
+    
+    bgCanvas.width = window.innerWidth;
+    bgCanvas.height = window.innerHeight;
     
     if (floor) {
         Matter.Body.setPosition(floor, {
