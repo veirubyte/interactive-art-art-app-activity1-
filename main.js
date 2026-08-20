@@ -354,15 +354,23 @@ Events.on(engine, 'afterUpdate', function() {
     const bodies = Composite.allBodies(engine.world);
     for (let i = 0; i < bodies.length; i++) {
         const body = bodies[i];
-        // Check if block has fallen off the platform level (restarts immediately)
+        if (body === floor) continue;
+
         const platformY = window.innerHeight * 0.8;
-        if (body !== floor && body.position.y > platformY + 15) {
-            Composite.remove(engine.world, body);
+
+        // Check if block has fallen off the platform level
+        if (!body.hasFallen && body.position.y > platformY + 15) {
+            body.hasFallen = true; // Mark as fallen so we don't count it multiple times
             
-            // Only care about 'self' blocks falling
+            // Only care about 'self' blocks falling for the restart logic
             if (body.label === 'self') {
                 fallenGreyBlocks++;
             }
+        }
+
+        // Remove the block completely once it falls off the bottom of the screen
+        if (body.position.y > window.innerHeight + 100) {
+            Composite.remove(engine.world, body);
         }
     }
     

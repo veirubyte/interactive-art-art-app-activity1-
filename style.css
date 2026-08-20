@@ -9,6 +9,11 @@ body {
     overflow: hidden; /* Prevent scrolling when blocks fall out of bounds */
     width: 100vw;
     height: 100vh;
+    height: 100dvh; /* Better mobile viewport sizing */
+    touch-action: none; /* Prevent swipe-to-refresh and pull-down */
+    overscroll-behavior: none; /* Prevent bounce effects on mobile */
+    user-select: none; /* Prevent selection on rapid tapping */
+    -webkit-user-select: none;
 }
 
 #bg-canvas {
